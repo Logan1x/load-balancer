@@ -1,37 +1,55 @@
 const http = require("http");
+const { URL } = require("url");
 
+// List of backend servers
 const servers = [
-	"http://localhost:8001",
-	"http://localhost:8002",
-	"http://localhost:8003",
+  "http://localhost:8001",
+  "http://localhost:8002",
+  "http://localhost:8003",
 ];
 let currentServer = 0;
 
-const loadBalancer = http.createServer((req, res) => {
-	const server = servers[currentServer];
-	currentServer = (currentServer + 1) % servers.length;
+// Function to forward request to the appropriate server
+function forwardRequest(req, res) {
+  // Get the current server URL
+  const serverUrl = servers[currentServer];
 
-	console.log(`Load Balancer: Forwarding request to ${server}`);
+  // Increment the server index for next request
+  currentServer = (currentServer + 1) % servers.length;
 
-	// Add a custom header to track which server handled the request
-	req.headers["x-forwarded-server"] = server;
+  // Log the server handling the request
+  console.log(`Load Balancer: Forwarding request to ${serverUrl}`);
 
-	const options = {
-		hostname: new URL(server).hostname,
-		port: new URL(server).port,
-		path: req.url,
-		method: req.method,
-		headers: req.headers,
-	};
+  // Parse the server URL
+  const { hostname, port } = new URL(serverUrl);
 
-	const proxyReq = http.request(options, (proxyRes) => {
-		res.writeHead(proxyRes.statusCode, proxyRes.headers);
-		proxyRes.pipe(res);
-	});
+  // Options for the request forwarded to the server
+  const options = {
+    hostname: hostname,
+    port: port,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      "x-forwarded-server": serverUrl, // Custom header to track which server handled the request
+    },
+  };
 
-	req.pipe(proxyReq);
+  // Forward the request to the selected server
+  const proxyReq = http.request(options, (proxyRes) => {
+    // Forward the response from the server to the client
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  // Forward the request body data to the server
+  req.pipe(proxyReq);
+}
+
+// Create the load balancer server
+const loadBalancer = http.createServer(forwardRequest);
+
+// Start the load balancer server
+loadBalancer.listen(8000, () => {
+  console.log("Load balancer running on port 8000");
 });
-
-loadBalancer.listen(8000, () =>
-	console.log("Load balancer running on port 8000")
-);
