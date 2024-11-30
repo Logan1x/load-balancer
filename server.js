@@ -1,6 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-
+const rateLimiter = require("./rateLimiter");
 const sharedData = require("./sharedData");
 
 const app = express();
@@ -8,6 +8,9 @@ const port = process.env.PORT || 8000;
 
 // This will be a unique identifier for each server instance
 const serverId = Math.random().toString(36).substring(7);
+
+// Apply rate limiter to all routes
+app.use(rateLimiter);
 
 app.use(bodyParser.json());
 
